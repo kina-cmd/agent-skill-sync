@@ -9,13 +9,20 @@ from pathlib import Path
 
 from . import __version__
 from .classifier import classify_all
-from .config import load_config
+from .config import load_config, user_config_home
 from .differ import diff_all, sync_state
 from .model import CATEGORIES
 from .report import to_markdown, write_outputs
 from .resolve import resolve
 from .scanner import scan
+from .state import compare, format_report, load_snapshot, save_snapshot, snapshot_from
 from .sync import execute_sync, plan_sync
+
+
+def _state_path(args) -> Path:
+    if getattr(args, "state", None):
+        return Path(args.state).expanduser()
+    return user_config_home() / "state.json"
 
 
 def _prepare(cfg, *, dedupe: bool = False):
@@ -56,6 +63,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_index = sub.add_parser("index", help="generate INDEX.md + inventory.json")
     p_index.add_argument("--out", default=".", help="output directory (default: cwd)")
     p_index.add_argument("--lang", choices=["zh", "en"], default="zh")
+    p_index.add_argument("--state", help="path to the change-detection snapshot (default: config home)")
+
+    p_check = sub.add_parser(
+        "check",
+        help="report what changed upstream since the last run (and record a new baseline)",
+    )
+    p_check.add_argument("--state", help="path to the change-detection snapshot (default: config home)")
+    p_check.add_argument("--quiet", action="store_true", help="print only the summary line")
 
     p_sync = sub.add_parser("sync", help="copy portable skills into the target root")
     p_sync.add_argument("--categories", default="A", help="comma list, e.g. A,B (default: A)")
@@ -152,9 +167,30 @@ def _do_index(cfg, args) -> int:
     paths = write_outputs(result, out_dir, lang=args.lang)
     for p in paths:
         print(f"wrote {p}")
+    # Change detection: report what moved upstream, then refresh the baseline.
+    state_path = _state_path(args)
+    old = load_snapshot(state_path)
+    changes = compare(old, result)
+    print()
+    print(format_report(changes, old))
+    save_snapshot(state_path, snapshot_from(result))
     # Also echo the markdown to stdout for quick piping.
     print()
     print(to_markdown(result, lang=args.lang)[:2000])
+    return 0
+
+
+def _do_check(cfg, args) -> int:
+    result = _prepare(cfg, dedupe=getattr(args, "dedupe", False))
+    state_path = _state_path(args)
+    old = load_snapshot(state_path)
+    changes = compare(old, result)
+    report = format_report(changes, old)
+    if args.quiet:
+        print(report.splitlines()[0])
+    else:
+        print(report)
+    save_snapshot(state_path, snapshot_from(result))
     return 0
 
 
@@ -210,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
         "status": _do_status,
         "index": _do_index,
         "sync": _do_sync,
+        "check": _do_check,
     }
     return handlers[args.command](cfg, args)
 

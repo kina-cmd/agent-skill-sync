@@ -340,5 +340,73 @@ class TestSyncControls(unittest.TestCase):
         self.assertIn("already planned", report.skipped[0].note)
 
 
+class TestStateChangeDetection(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.src = base / "src"
+        self.tgt = base / "tgt"
+        self.src.mkdir()
+        self.tgt.mkdir()
+        self.cfg = Config(
+            sources=[SourceRoot(label="src", path=self.src)],
+            target=TargetRoot(label="tgt", path=self.tgt),
+        )
+        self.state_path = base / "state.json"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _scan(self):
+        from skillsync.classifier import classify_all
+        from skillsync.differ import diff_all
+        from skillsync.scanner import scan
+
+        r = scan(self.cfg)
+        classify_all(r.skills, self.cfg)
+        diff_all(r.skills, self.cfg)
+        return r
+
+    def test_first_run_is_baseline(self):
+        from skillsync.state import compare, load_snapshot, save_snapshot, snapshot_from
+
+        _write_skill(self.src, "a", "# a\n")
+        r = self._scan()
+        self.assertEqual(compare(None, r), [])
+        save_snapshot(self.state_path, snapshot_from(r))
+        self.assertIsNotNone(load_snapshot(self.state_path))
+
+    def test_detects_content_new_and_removed(self):
+        from skillsync.state import compare, load_snapshot, save_snapshot, snapshot_from
+
+        _write_skill(self.src, "a", "# a v1\n")
+        _write_skill(self.src, "gone", "# gone\n")
+        r1 = self._scan()
+        save_snapshot(self.state_path, snapshot_from(r1))
+
+        # upstream: modify a, remove gone, add b
+        (self.src / "a" / "SKILL.md").write_text("---\nname: a\n---\n# a v2\n", encoding="utf-8")
+        import shutil
+
+        shutil.rmtree(self.src / "gone")
+        _write_skill(self.src, "b", "# b\n")
+        r2 = self._scan()
+
+        changes = compare(load_snapshot(self.state_path), r2)
+        kinds = {(c.kind, c.key.split(":", 1)[1]) for c in changes}
+        self.assertIn(("content", "a"), kinds)
+        self.assertIn(("removed", "gone"), kinds)
+        self.assertIn(("new", "b"), kinds)
+
+    def test_corrupt_snapshot_treated_as_absent(self):
+        from skillsync.state import compare, load_snapshot
+
+        self.state_path.write_text("{ not json", encoding="utf-8")
+        _write_skill(self.src, "a", "# a\n")
+        r = self._scan()
+        self.assertIsNone(load_snapshot(self.state_path))
+        self.assertEqual(compare(None, r), [])
+
+
 if __name__ == "__main__":
     unittest.main()

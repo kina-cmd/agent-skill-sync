@@ -77,6 +77,10 @@ skillsync scan --json                # machine-readable inventory
 # or paste into a "tool reuse" skill for your agent to read
 skillsync index --out ./output --lang zh
 
+# What changed upstream since I last looked?
+skillsync check          # diffs against the last snapshot, then records a new one
+skillsync check --quiet  # summary line only (cron-friendly)
+
 # Sync portable skills into the target root — plan first, always
 skillsync sync --dry-run
 skillsync sync --categories A
