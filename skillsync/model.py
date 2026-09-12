@@ -56,6 +56,13 @@ class ScanResult:
     skills: list[Skill] = field(default_factory=list)
     roots_scanned: list[tuple[str, Path]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    # Populated by resolve(): base_name -> [source labels] for names that were
+    # identical across multiple roots and collapsed to a single entry.
+    duplicates: list[tuple[str, list[str]]] = field(default_factory=list)
+    # (target_name, winner_source, [loser sources]) for stale copies superseded
+    # by a higher-priority canonical version.
+    shadowed: list[tuple[str, str, list[str]]] = field(default_factory=list)
+    resolved: bool = False
 
     def by_name(self) -> dict[str, list[Skill]]:
         out: dict[str, list[Skill]] = {}

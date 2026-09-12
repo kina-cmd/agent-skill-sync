@@ -203,6 +203,142 @@ class TestScanDiffSync(unittest.TestCase):
         # frontmatter's declared name wins for display matching.
         self.assertIn(result.skills[0].name, {"nested-skill", "myplugin:nested-skill"})
 
+    def test_line_endings_are_not_drift(self):
+        src = self.src_root / "eol"
+        src.mkdir()
+        (src / "SKILL.md").write_bytes(b"---\nname: eol\n---\nline1\nline2\n")
+        tgt = self.tgt_root / "eol"
+        tgt.mkdir()
+        (tgt / "SKILL.md").write_bytes(b"---\r\nname: eol\r\n---\r\nline1\r\nline2\r\n")
+        result = scan(self.cfg)
+        diff_all(result.skills, self.cfg)
+        self.assertEqual(sync_state(result.skills[0]), "identical")
+
+
+class TestResolve(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.root_a = base / "a"
+        self.root_b = base / "b"
+        self.root_a.mkdir()
+        self.root_b.mkdir()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _skill(self, root: Path, name: str, content: str, source: str):
+        from skillsync.frontmatter import parse_file
+        from skillsync.model import Skill
+
+        p = _write_skill(root, name, content)
+        doc = parse_file(p)
+        return Skill(name=name, path=p, source=source, root=root, frontmatter=doc.data)
+
+    def test_identical_copies_collapse(self):
+        from skillsync.resolve import resolve
+
+        s1 = self._skill(self.root_a, "shared", "# same\n", "codex")
+        s2 = self._skill(self.root_b, "shared", "# same\n", "qoder-cn")
+        resolved, dups, shadowed = resolve([s2, s1], source_priority=("codex", "qoder-cn"))
+        self.assertEqual(len(resolved), 1)
+        self.assertEqual(resolved[0].source, "codex")
+        self.assertEqual(dups, [("shared", ["codex", "qoder-cn"])])
+        self.assertEqual(shadowed, [])
+
+    def test_variants_shadow_lower_priority(self):
+        from skillsync.resolve import resolve
+
+        s1 = self._skill(self.root_a, "v", "# version A\n", "codex")
+        s2 = self._skill(self.root_b, "v", "# version B\n", "qoder-cn")
+        resolved, dups, shadowed = resolve([s2, s1], source_priority=("codex", "qoder-cn"))
+        self.assertEqual(len(resolved), 1)
+        self.assertEqual(resolved[0].source, "codex")  # canonical wins
+        self.assertEqual(dups, [])
+        self.assertEqual(shadowed, [("v", "codex", ["qoder-cn"])])
+
+    def test_qualified_names_match_bare(self):
+        from skillsync.resolve import resolve
+
+        s1 = self._skill(self.root_a, "tool", "# same\n", "codex-marketplace")
+        s1.name = "agent-skills:tool"
+        s2 = self._skill(self.root_b, "tool", "# same\n", "codex")
+        resolved, dups, shadowed = resolve([s1, s2])
+        self.assertEqual(len(resolved), 1)
+        self.assertEqual(dups[0][0], "tool")
+
+    def test_distinct_skills_same_basename_not_merged(self):
+        from skillsync.resolve import resolve
+
+        # agent-skills:test-driven-development → target "test-driven-development"
+        # superpowers:test-driven-development  → target "superpowers-test-driven-development"
+        s1 = self._skill(self.root_a, "test-driven-development", "# agent skills ver\n", "codex-marketplace")
+        s1.name = "agent-skills:test-driven-development"
+        s2 = self._skill(self.root_b, "test-driven-development", "# superpowers ver\n", "codex-marketplace")
+        s2.name = "superpowers:test-driven-development"
+        resolved, dups, shadowed = resolve([s1, s2])
+        self.assertEqual(len(resolved), 2)  # two distinct skills, NOT merged
+        names = {r.name for r in resolved}
+        self.assertEqual(names, {"agent-skills:test-driven-development",
+                                 "superpowers:test-driven-development"})
+
+
+class TestSyncControls(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        base = Path(self.tmp.name)
+        self.codex = base / "codex"
+        self.qoder = base / "qoder"
+        self.tgt = base / "tgt"
+        self.codex.mkdir()
+        self.qoder.mkdir()
+        self.tgt.mkdir()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _skill(self, root, name, content, source, category="A"):
+        from skillsync.frontmatter import parse_file
+        from skillsync.model import Skill
+
+        p = _write_skill(root, name, content)
+        doc = parse_file(p)
+        s = Skill(name=name, path=p, source=source, root=root, frontmatter=doc.data)
+        s.category = category
+        return s
+
+    def test_drifted_only_never_adds_new(self):
+        from skillsync.differ import diff_all
+        from skillsync.config import Config, SourceRoot, TargetRoot
+        from skillsync.sync import plan_sync
+
+        existing = self._skill(self.codex, "have", "# new version\n", "codex")
+        brand_new = self._skill(self.codex, "never-synced", "# x\n", "codex")
+        # target has an OLD version of "have", nothing for "never-synced"
+        _write_skill(self.tgt, "have", "# OLD version\n")
+
+        cfg = Config(sources=[SourceRoot(label="codex", path=self.codex)],
+                     target=TargetRoot(label="tgt", path=self.tgt))
+        diff_all([existing, brand_new], cfg)
+
+        report = plan_sync([existing, brand_new], self.tgt, force=True, drifted_only=True)
+        planned_names = {i.skill.name for i in report.planned}
+        self.assertEqual(planned_names, {"have"})
+        self.assertNotIn("never-synced", planned_names)
+
+    def test_source_priority_first_wins(self):
+        from skillsync.sync import plan_sync
+
+        # Same skill name from two roots, both would write to tgt/dup.
+        codex_ver = self._skill(self.codex, "dup", "# from codex\n", "codex")
+        qoder_ver = self._skill(self.qoder, "dup", "# from qoder\n", "qoder-cn")
+        report = plan_sync([qoder_ver, codex_ver], self.tgt)
+        updates = [i for i in report.planned if i.action == "copy"]
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0].skill.source, "codex")  # higher priority wins
+        self.assertEqual(len(report.skipped), 1)
+        self.assertIn("already planned", report.skipped[0].note)
+
 
 if __name__ == "__main__":
     unittest.main()

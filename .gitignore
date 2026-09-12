@@ -13,4 +13,5 @@ Thumbs.db
 output/
 INDEX.md
 inventory.json
+skillsync.toml
 !.github/workflows/

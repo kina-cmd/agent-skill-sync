@@ -13,8 +13,23 @@ from .config import load_config
 from .differ import diff_all, sync_state
 from .model import CATEGORIES
 from .report import to_markdown, write_outputs
+from .resolve import resolve
 from .scanner import scan
 from .sync import execute_sync, plan_sync
+
+
+def _prepare(cfg, *, dedupe: bool = False):
+    """Scan → classify → diff → (optionally) resolve cross-source duplicates."""
+    result = scan(cfg)
+    classify_all(result.skills, cfg)
+    diff_all(result.skills, cfg)
+    if dedupe:
+        skills, dups, shadowed = resolve(result.skills)
+        result.skills = skills
+        result.duplicates = dups
+        result.shadowed = shadowed
+        result.resolved = True
+    return result
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -24,6 +39,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"skillsync {__version__}")
     parser.add_argument("--config", help="path to a skillsync.toml")
+    parser.add_argument(
+        "--dedupe",
+        action="store_true",
+        help="collapse skills that are identical across multiple source roots into one entry",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_scan = sub.add_parser("scan", help="scan roots and print a one-line-per-skill summary")
@@ -42,6 +62,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("--dry-run", action="store_true", help="print the plan, change nothing")
     p_sync.add_argument("--force", action="store_true", help="update drifted copies (backs them up first)")
     p_sync.add_argument("--prefix", default="", help="prefix added to every synced skill name")
+    p_sync.add_argument(
+        "--drifted-only",
+        action="store_true",
+        help="only refresh skills that already exist in the target but differ; never add new ones",
+    )
+    p_sync.add_argument("--source", action="append", help="restrict sync to these source labels (repeatable)")
 
     return parser
 
@@ -62,9 +88,7 @@ def _apply_extra_sources(cfg, extras: list[str] | None) -> None:
 
 
 def _do_scan(cfg, args) -> int:
-    result = scan(cfg)
-    classify_all(result.skills, cfg)
-    diff_all(result.skills, cfg)
+    result = _prepare(cfg, dedupe=getattr(args, "dedupe", False))
     if args.json:
         from .report import to_json
 
@@ -88,10 +112,8 @@ def _do_scan(cfg, args) -> int:
     return 0
 
 
-def _do_status(cfg, _args) -> int:
-    result = scan(cfg)
-    classify_all(result.skills, cfg)
-    diff_all(result.skills, cfg)
+def _do_status(cfg, args) -> int:
+    result = _prepare(cfg, dedupe=getattr(args, "dedupe", False))
     counts = Counter(s.category for s in result.skills)
     sync_counts = Counter(sync_state(s) for s in result.skills)
     print("skillsync status")
@@ -115,13 +137,17 @@ def _do_status(cfg, _args) -> int:
             print(f"  - {s.name}")
         if len(drifted) > 40:
             print(f"  ... and {len(drifted) - 40} more")
+    if result.resolved and result.duplicates:
+        print(f"\ndedupe: collapsed {len(result.duplicates)} name(s) identical across roots "
+              f"(e.g. {result.duplicates[0][0]}: {', '.join(result.duplicates[0][1])})")
+    if result.resolved and result.shadowed:
+        print(f"dedupe: shadowed {len(result.shadowed)} stale copy/copies superseded by a "
+              f"newer canonical version (kept the higher-priority source)")
     return 0
 
 
 def _do_index(cfg, args) -> int:
-    result = scan(cfg)
-    classify_all(result.skills, cfg)
-    diff_all(result.skills, cfg)
+    result = _prepare(cfg, dedupe=getattr(args, "dedupe", False))
     out_dir = Path(args.out).expanduser()
     paths = write_outputs(result, out_dir, lang=args.lang)
     for p in paths:
@@ -136,9 +162,7 @@ def _do_sync(cfg, args) -> int:
     if cfg.target is None or not cfg.target.path.is_dir():
         print("[error] target root missing; set [target] in skillsync.toml", file=sys.stderr)
         return 2
-    result = scan(cfg)
-    classify_all(result.skills, cfg)
-    diff_all(result.skills, cfg)
+    result = _prepare(cfg, dedupe=getattr(args, "dedupe", False))
     cats = tuple(c.strip().upper() for c in args.categories.split(",") if c.strip())
     collisions = {s.name for s in result.skills if s.name.startswith(args.prefix)} if args.prefix else set()
     report = plan_sync(
@@ -148,6 +172,8 @@ def _do_sync(cfg, args) -> int:
         prefix_collisions=collisions,
         force=args.force,
         name_prefix=args.prefix,
+        drifted_only=args.drifted_only,
+        sources=tuple(args.source) if args.source else None,
     )
     mode = "DRY RUN" if args.dry_run else "SYNC"
     print(f"{mode}: categories={'+'.join(cats)} target={cfg.target.path}")
@@ -174,7 +200,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     cfg = load_config(args.config)
-    _apply_extra_sources(cfg, getattr(args, "source", None))
+    # --source means "add a source root" only for scan; for sync it filters by
+    # existing labels, so we must not treat sync's values as new roots.
+    if args.command == "scan":
+        _apply_extra_sources(cfg, getattr(args, "source", None))
 
     handlers = {
         "scan": _do_scan,

@@ -1,13 +1,16 @@
 """Differ: compare scanned source skills against the target root.
 
-For each source skill we look for a same-named skill in the target and decide:
+Matching a source skill to its target slot:
 
-* **missing** — not present in the target at all.
-* **identical** — present and byte-for-byte the same.
-* **drifted** — present but content differs (someone edited one side).
+1. Qualified ``plugin:base`` prefers target dir ``plugin-base`` (the WorkBuddy
+   convention for the superpowers family), then falls back to ``base``.
+2. Bare ``base`` prefers target dir ``base``, then tries known prefixed
+   variants (``superpowers-base`` …) — qoder-cn stores superpowers skills
+   without the prefix, so a bare source name can legitimately own a prefixed
+   target slot.
 
-The target may use a prefix to avoid name clashes (e.g. ``superpowers-``);
-we strip a configured set of prefixes when matching names.
+States: **missing** (no target slot), **identical** (same content modulo line
+endings), **drifted** (target slot exists but content differs).
 """
 
 from __future__ import annotations
@@ -20,43 +23,69 @@ from .model import Skill
 DEFAULT_PREFIXES = ("superpowers-",)
 
 
-def _target_index(config: Config, prefixes: tuple[str, ...]) -> dict[str, Path]:
-    """Map normalized skill name → SKILL.md path in the target root."""
+def build_target_index(config: Config) -> dict[str, Path]:
+    """Map raw target directory name → SKILL.md path."""
     index: dict[str, Path] = {}
     target = config.target
     if target is None or not target.path.is_dir():
         return index
     for match in sorted(target.path.glob(target.glob)):
-        if not match.is_file():
-            continue
-        name = match.parent.name
-        for prefix in prefixes:
-            if name.startswith(prefix):
-                name = name[len(prefix):]
-                break
-        index[name] = match
+        if match.is_file():
+            index[match.parent.name] = match
     return index
 
 
+def match_target(
+    skill_name: str,
+    target_index: dict[str, Path],
+    prefixes: tuple[str, ...] = DEFAULT_PREFIXES,
+) -> Path | None:
+    """Find the target SKILL.md a source skill name maps onto (or None)."""
+    plugin: str | None = None
+    base = skill_name
+    if ":" in skill_name:
+        plugin, base = skill_name.split(":", 1)
+    # Qualified names prefer their prefixed slot to avoid hijacking a
+    # same-basename skill from a different plugin.
+    if plugin:
+        prefixed = f"{plugin}-{base}"
+        if prefixed in target_index:
+            return target_index[prefixed]
+    if base in target_index:
+        return target_index[base]
+    for prefix in prefixes:
+        if base.startswith(prefix):
+            continue
+        variant = prefix + base
+        if variant in target_index:
+            return target_index[variant]
+    return None
+
+
+def _norm(data: bytes) -> bytes:
+    return data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def diff(skill: Skill, target_index: dict[str, Path]) -> None:
-    base = skill.name
-    if ":" in base:
-        base = base.split(":", 1)[1]
-    candidate = target_index.get(base)
+    candidate = match_target(skill.name, target_index)
     if candidate is None:
         skill.synced_to = None
         skill.in_sync = None
         return
     skill.synced_to = candidate
     try:
-        same = candidate.read_bytes() == skill.path.read_bytes()
+        same = _norm(candidate.read_bytes()) == _norm(skill.path.read_bytes())
     except OSError:
         same = False
     skill.in_sync = same
 
 
-def diff_all(skills, config: Config, prefixes: tuple[str, ...] = DEFAULT_PREFIXES) -> dict[str, Path]:
-    target_index = _target_index(config, prefixes)
+def diff_all(
+    skills,
+    config: Config,
+    prefixes: tuple[str, ...] = DEFAULT_PREFIXES,
+) -> dict[str, Path]:
+    target_index = build_target_index(config)
     for skill in skills:
         diff(skill, target_index)
     return target_index
