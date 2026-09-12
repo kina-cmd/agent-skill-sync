@@ -1,0 +1,50 @@
+# skillsync configuration example.
+# Copy to ./skillsync.toml or $XDG_CONFIG_HOME/skillsync/skillsync.toml
+# and adjust paths to your machine.
+
+[target]
+label = "workbuddy"
+path  = "~/.workbuddy/skills"
+glob  = "*/SKILL.md"
+
+[[sources]]
+label = "codex"
+path  = "~/.codex/skills"
+glob  = "*/SKILL.md"
+
+[[sources]]
+label  = "codex-system"
+path   = "~/.codex/skills/.system"
+glob   = "*/SKILL.md"
+system = true                    # platform-private root → always category D
+
+[[sources]]
+label = "codex-marketplace"
+path  = "~/.codex/plugins/cache"
+glob  = "**/skills/*/SKILL.md"   # recursive: <plugin>/<version>/skills/<name>
+
+[[sources]]
+label = "claude"
+path  = "~/.claude/skills"
+glob  = "*/SKILL.md"
+
+[deps]
+# Teach the classifier that a dependency is satisfied even when it is not on
+# PATH. kind = "shutil" (probe PATH) | "path" (file exists) | "env" (env var set).
+ffmpeg   = "ffmpeg"
+node     = "node"
+gh       = "gh"
+voicebox = { kind = "path", value = "~/App/Voicebox/voicebox.exe" }
+notion   = { kind = "env",  value = "NOTION_TOKEN" }
+
+# Markers that force category C (rewrite required) / D (platform-private).
+# Extend the built-in list if your target agent uses different conventions.
+platform_private_markers = [
+    "image_gen",
+    "view_image",
+    "tool_search",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "codex-security",
+    "computer-use",
+]

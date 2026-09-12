@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.env
+.DS_Store
+Thumbs.db
+.pytest_cache/
+.mypy_cache/
+output/
+INDEX.md
+inventory.json
+!.github/workflows/

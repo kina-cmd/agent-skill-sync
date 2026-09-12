@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skillsync"
+version = "0.1.0"
+description = "Scan, classify and sync AI-agent skills (SKILL.md) across toolchains like OpenAI Codex, Claude Code and WorkBuddy."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["ai", "agent", "skills", "codex", "claude", "workbuddy", "migration", "inventory"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.scripts]
+skillsync = "skillsync.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kina-cmd/agent-skill-sync"
+Issues = "https://github.com/kina-cmd/agent-skill-sync/issues"
+
+[tool.setuptools.packages.find]
+include = ["skillsync*"]
