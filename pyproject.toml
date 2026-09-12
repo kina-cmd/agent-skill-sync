@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "skillsync"
+name = "agent-skill-sync"
 version = "0.1.0"
 description = "Scan, classify and sync AI-agent skills (SKILL.md) across toolchains like OpenAI Codex, Claude Code and WorkBuddy."
 readme = "README.md"

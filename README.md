@@ -1,8 +1,8 @@
 # agent-skill-sync
 
 [![CI](https://github.com/kina-cmd/agent-skill-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/kina-cmd/agent-skill-sync/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/skillsync)](https://pypi.org/project/skillsync/)
-[![Python](https://img.shields.io/pypi/pyversions/skillsync)](https://pypi.org/project/skillsync/)
+[![PyPI version](https://img.shields.io/pypi/v/agent-skill-sync)](https://pypi.org/project/agent-skill-sync/)
+[![Python](https://img.shields.io/pypi/pyversions/agent-skill-sync)](https://pypi.org/project/agent-skill-sync/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **`skillsync`** — scan, classify and sync AI-agent skills (`SKILL.md` files) across toolchains.
@@ -54,8 +54,8 @@ the index shows *why* a skill landed in each bucket, and *which* dependencies ar
 ## Install
 
 ```bash
-pipx install skillsync        # recommended: isolated CLI install
-pip install skillsync         # or into your environment
+pipx install agent-skill-sync   # recommended: isolated CLI install
+pip install agent-skill-sync    # or into your environment
 
 # from source, without installing:
 git clone https://github.com/kina-cmd/agent-skill-sync && cd agent-skill-sync
