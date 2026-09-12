@@ -1,5 +1,10 @@
 # agent-skill-sync
 
+[![CI](https://github.com/kina-cmd/agent-skill-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/kina-cmd/agent-skill-sync/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/skillsync)](https://pypi.org/project/skillsync/)
+[![Python](https://img.shields.io/pypi/pyversions/skillsync)](https://pypi.org/project/skillsync/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **`skillsync`** — scan, classify and sync AI-agent skills (`SKILL.md` files) across toolchains.
 
 If you use several AI coding agents (OpenAI Codex, Claude Code, WorkBuddy, …), you end up with
@@ -49,8 +54,11 @@ the index shows *why* a skill landed in each bucket, and *which* dependencies ar
 ## Install
 
 ```bash
-pipx install .        # or: pip install .
-# without installing:
+pipx install skillsync        # recommended: isolated CLI install
+pip install skillsync         # or into your environment
+
+# from source, without installing:
+git clone https://github.com/kina-cmd/agent-skill-sync && cd agent-skill-sync
 python -m skillsync.cli --help
 ```
 
