@@ -6,6 +6,6 @@ etc. — and want one honest inventory: what exists, where it lives, whether it
 is runnable, and what it would take to migrate it.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = ["__version__"]

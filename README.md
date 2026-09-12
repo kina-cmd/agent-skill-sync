@@ -93,8 +93,19 @@ skillsync sync --categories A,B --force    # update drifted copies (backs them u
 
 ## Configuration
 
-By default, `skillsync` auto-discovers the well-known roots on your machine
-(`~/.codex/skills`, `~/.codex/plugins/cache`, `~/.claude/skills` → target `~/.workbuddy/skills`).
+By default, `skillsync` auto-discovers the well-known roots on your machine —
+every major adopter of the [Agent Skills open standard](https://agentskills.io):
+
+| Root | Platform |
+|---|---|
+| `~/.codex/skills` + `~/.codex/plugins/cache` | OpenAI Codex (+ marketplace plugin caches) |
+| `~/.claude/skills` | Claude Code (reference implementation) |
+| `~/.copilot/skills` | GitHub Copilot |
+| `~/.gemini/skills` | Gemini CLI |
+| `~/.cursor/skills` | Cursor |
+| `~/.config/opencode/skills` | OpenCode |
+
+Target defaults to `~/.workbuddy/skills`. Roots that don't exist are skipped silently.
 
 Override or extend with `skillsync.toml` (looked up in `./` then `$XDG_CONFIG_HOME/skillsync/`):
 

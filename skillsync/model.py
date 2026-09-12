@@ -56,6 +56,8 @@ class ScanResult:
     skills: list[Skill] = field(default_factory=list)
     roots_scanned: list[tuple[str, Path]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    # Raw (pre-dedupe) skill count per source label, for honest reporting.
+    raw_counts: dict[str, int] = field(default_factory=dict)
     # Populated by resolve(): base_name -> [source labels] for names that were
     # identical across multiple roots and collapsed to a single entry.
     duplicates: list[tuple[str, list[str]]] = field(default_factory=list)

@@ -66,6 +66,7 @@ def scan(config: Config) -> ScanResult:
         if not root.exists():
             result.errors.append(f"source root missing: {root.label} ({root.path})")
             continue
+        found = 0
         for skill_file in _iter_skill_files(root):
             try:
                 doc = parse_file(skill_file)
@@ -87,4 +88,6 @@ def scan(config: Config) -> ScanResult:
                 # Prefer the declared name when it looks sane.
                 skill.name = name_in_meta
             result.skills.append(skill)
+            found += 1
+        result.raw_counts[root.label] = found
     return result

@@ -23,7 +23,17 @@ from __future__ import annotations
 from .differ import DEFAULT_PREFIXES
 from .model import Skill
 
-DEFAULT_PRIORITY = ("codex-marketplace", "codex", "qoder-cn", "qoder", "claude")
+DEFAULT_PRIORITY = (
+    "codex-marketplace",
+    "codex",
+    "qoder-cn",
+    "qoder",
+    "claude",
+    "copilot",
+    "gemini",
+    "cursor",
+    "opencode",
+)
 
 
 def _norm(data: bytes) -> bytes:

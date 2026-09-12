@@ -121,7 +121,7 @@ def _do_status(cfg, args) -> int:
     if cfg.target:
         print(f"target: {cfg.target.label} -> {cfg.target.path} ({'exists' if cfg.target.path.is_dir() else 'MISSING'})")
     for label, path in result.roots_scanned:
-        n = sum(1 for s in result.skills if s.source == label)
+        n = result.raw_counts.get(label, 0)
         print(f"source: {label:20} {n:3} skills   {path}")
     print("\nby category:")
     for c in (*CATEGORIES, "?"):

@@ -119,8 +119,15 @@ def default_config() -> Config:
         home / ".codex" / "plugins" / "cache",
         glob="**/skills/*/SKILL.md",
     )
-    # Claude Code
+    # Other adopters of the Agent Skills open standard (agentskills.io):
+    # Claude Code is the reference implementation; GitHub Copilot has the
+    # largest install base; Gemini CLI is Google's full implementation;
+    # Cursor and OpenCode round out the common terminal/IDE agents.
     add("claude", home / ".claude" / "skills")
+    add("copilot", home / ".copilot" / "skills")
+    add("gemini", home / ".gemini" / "skills")
+    add("cursor", home / ".cursor" / "skills")
+    add("opencode", home / ".config" / "opencode" / "skills")
 
     target = TargetRoot(label="workbuddy", path=home / ".workbuddy" / "skills")
 
